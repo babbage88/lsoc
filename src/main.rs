@@ -67,6 +67,7 @@ fn list_dir(path: &Path) -> io::Result<()> {
             "-"
         };
 
+        // marking _permissions_str unused since it is not currently used elsewhere, but may later  
         let _permissions_str = display_permissions(&metadata);
         let mode = metadata.mode();
         let perms = format!(
