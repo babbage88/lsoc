@@ -9,6 +9,7 @@ use nu_ansi_term::Style;
 use chrono::{DateTime, Local};
 use lscolors::{LsColors, Style as LsStyle};
 use users::{get_group_by_gid, get_user_by_uid};
+use std::os::unix::fs::PermissionsExt;
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -31,6 +32,27 @@ fn cat_file(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+fn display_permissions(metadata: &fs::Metadata) -> String {
+    let perms = metadata.permissions();
+    let mode = perms.mode(); // Unix-specific: std::os::unix::fs::PermissionsExt
+    let file_type = if metadata.is_dir() { 'd' } else { '-' };
+
+    format!(
+        "{}{}{}{}{}{}{}{}{}{}",
+        file_type,
+        if mode & 0o400 != 0 { 'r' } else { '-' },
+        if mode & 0o200 != 0 { 'w' } else { '-' },
+        if mode & 0o100 != 0 { 'x' } else { '-' },
+        if mode & 0o040 != 0 { 'r' } else { '-' },
+        if mode & 0o020 != 0 { 'w' } else { '-' },
+        if mode & 0o010 != 0 { 'x' } else { '-' },
+        if mode & 0o004 != 0 { 'r' } else { '-' },
+        if mode & 0o002 != 0 { 'w' } else { '-' },
+        if mode & 0o001 != 0 { 'x' } else { '-' },
+    )
+}
+
+
 fn list_dir(path: &Path) -> io::Result<()> {
     let lscolors = LsColors::from_env().unwrap_or_default();
     let entries: Vec<_> = fs::read_dir(path)?.filter_map(Result::ok).collect();
@@ -45,7 +67,7 @@ fn list_dir(path: &Path) -> io::Result<()> {
             "-"
         };
 
-        let permissions = metadata.permissions();
+        let permissions_str = display_permissions(&metadata);
         let mode = metadata.mode();
         let perms = format!(
             "{}{}{}{}{}{}{}{}{}",
