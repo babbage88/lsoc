@@ -67,7 +67,7 @@ fn list_dir(path: &Path) -> io::Result<()> {
             "-"
         };
 
-        let permissions_str = display_permissions(&metadata);
+        let _permissions_str = display_permissions(&metadata);
         let mode = metadata.mode();
         let perms = format!(
             "{}{}{}{}{}{}{}{}{}",
