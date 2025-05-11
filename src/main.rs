@@ -1,6 +1,5 @@
 use std::{
-    env, fs,
-    io::{self, Read},
+    env, fs, io,
     os::unix::fs::MetadataExt,
     path::Path,
 };
@@ -9,11 +8,9 @@ use chrono::{DateTime, Local};
 use lscolors::{LsColors, Style as LsStyle};
 use nu_ansi_term::Style;  // This is correct for terminal styling
 use std::os::unix::fs::PermissionsExt;
-use syntect::easy::HighlightLines;
-use syntect::highlighting::{Style as SyntectStyle, ThemeSet};
-use syntect::parsing::SyntaxSet;
-use syntect::util::{LinesWithEndings, as_24_bit_terminal_escaped};
 use users::{get_group_by_gid, get_user_by_uid};
+use bat::{PagingMode, PrettyPrinter};
+
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -29,23 +26,18 @@ fn main() -> io::Result<()> {
 }
 
 fn cat_file(path: &Path) -> io::Result<()> {
-    let mut file = fs::File::open(path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
+    let result = PrettyPrinter::new()
+        .input_file(path)
+        .line_numbers(false)
+        .header(false)
+        .grid(false)
+        .paging_mode(PagingMode::Never)
+        .print();
 
-    // Load these once at the start of your program
-    let ps = SyntaxSet::load_defaults_newlines();
-    let ts = ThemeSet::load_defaults();
+    if let Err(e) = result {
+        eprintln!("Error printing file: {e}");
+    }
 
-    let syntax = ps.find_syntax_by_extension("rs").unwrap();
-    let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
-    print!("{}", contents);
-
-    for line in LinesWithEndings::from(&contents) {
-    let ranges: Vec<(SyntectStyle, &str)> = h.highlight_line(line, &ps).unwrap();
-    let escaped = as_24_bit_terminal_escaped(&ranges[..], true);
-    print!("{}", escaped);
-}
     Ok(())
 }
 
