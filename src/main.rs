@@ -5,11 +5,15 @@ use std::{
     path::Path,
 };
 
-use nu_ansi_term::Style;
 use chrono::{DateTime, Local};
 use lscolors::{LsColors, Style as LsStyle};
-use users::{get_group_by_gid, get_user_by_uid};
+use nu_ansi_term::Style;  // This is correct for terminal styling
 use std::os::unix::fs::PermissionsExt;
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{Style as SyntectStyle, ThemeSet};
+use syntect::parsing::SyntaxSet;
+use syntect::util::{LinesWithEndings, as_24_bit_terminal_escaped};
+use users::{get_group_by_gid, get_user_by_uid};
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -28,7 +32,20 @@ fn cat_file(path: &Path) -> io::Result<()> {
     let mut file = fs::File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
+
+    // Load these once at the start of your program
+    let ps = SyntaxSet::load_defaults_newlines();
+    let ts = ThemeSet::load_defaults();
+
+    let syntax = ps.find_syntax_by_extension("rs").unwrap();
+    let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
     print!("{}", contents);
+
+    for line in LinesWithEndings::from(&contents) {
+    let ranges: Vec<(SyntectStyle, &str)> = h.highlight_line(line, &ps).unwrap();
+    let escaped = as_24_bit_terminal_escaped(&ranges[..], true);
+    print!("{}", escaped);
+}
     Ok(())
 }
 
@@ -52,7 +69,6 @@ fn display_permissions(metadata: &fs::Metadata) -> String {
     )
 }
 
-
 fn list_dir(path: &Path) -> io::Result<()> {
     let lscolors = LsColors::from_env().unwrap_or_default();
     let entries: Vec<_> = fs::read_dir(path)?.filter_map(Result::ok).collect();
@@ -67,7 +83,7 @@ fn list_dir(path: &Path) -> io::Result<()> {
             "-"
         };
 
-        // marking _permissions_str unused since it is not currently used elsewhere, but may later  
+        // marking _permissions_str unused since it is not currently used elsewhere, but may later
         let _permissions_str = display_permissions(&metadata);
         let mode = metadata.mode();
         let perms = format!(
@@ -103,22 +119,26 @@ fn list_dir(path: &Path) -> io::Result<()> {
         let style = lscolors.style_for_path(&entry.path());
 
         let colored_name = match style {
-    Some(LsStyle { foreground, background, font_style, .. }) => {
-        let mut ansi = nu_ansi_term::Style::new();
-        if let Some(fg) = foreground {
-            ansi = ansi.fg(fg.to_nu_ansi_term_color());
-        }
-        if let Some(bg) = background {
-            ansi = ansi.on(bg.to_nu_ansi_term_color());
-        }
-        if font_style.bold {
-            ansi = ansi.bold();
-        }
-        ansi.paint(file_name_str.to_string())
-    }
-    None => Style::new().paint(file_name_str.to_string()),
-};
-
+            Some(LsStyle {
+                foreground,
+                background,
+                font_style,
+                ..
+            }) => {
+                let mut ansi = nu_ansi_term::Style::new();
+                if let Some(fg) = foreground {
+                    ansi = ansi.fg(fg.to_nu_ansi_term_color());
+                }
+                if let Some(bg) = background {
+                    ansi = ansi.on(bg.to_nu_ansi_term_color());
+                }
+                if font_style.bold {
+                    ansi = ansi.bold();
+                }
+                ansi.paint(file_name_str.to_string())
+            }
+            None => Style::new().paint(file_name_str.to_string()),
+        };
 
         println!(
             "{}{} {:>2} {:<8} {:<8} {:>8} {} {}",
